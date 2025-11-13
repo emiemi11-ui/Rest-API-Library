@@ -1,0 +1,21 @@
+# Build directories
+build/
+*.o
+*.a
+rest_api
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
