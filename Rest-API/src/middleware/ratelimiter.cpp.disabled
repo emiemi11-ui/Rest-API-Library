@@ -1,0 +1,112 @@
+#include "../../include/middleware/ratelimiter.hpp"
+#include "../../include/http/request.hpp"
+#include "../../include/http/response.hpp"
+
+namespace middleware {
+
+RateLimiter::RateLimiter(int max_requests, int window_seconds)
+    : max_requests_(max_requests), window_seconds_(window_seconds) {}
+
+bool RateLimiter::checkLimit(const http::Request& request, http::Response& response) {
+    std::string client_ip = extractClientIp(request);
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto& client = clients_[client_ip];
+    removeOldRequests(client);
+
+    // Check if limit exceeded
+    if (client.requests.size() >= static_cast<size_t>(max_requests_)) {
+        response.setStatus(429);
+        response.setHeader("Content-Type", "application/json");
+        response.setHeader("Retry-After", std::to_string(window_seconds_));
+        response.setHeader("X-RateLimit-Limit", std::to_string(max_requests_));
+        response.setHeader("X-RateLimit-Remaining", "0");
+        response.setHeader("X-RateLimit-Reset", std::to_string(window_seconds_));
+
+        response.setBody(R"({"error":"Rate limit exceeded","message":"Too many requests. Please try again later."})");
+        return false;
+    }
+
+    // Add current request
+    client.requests.push_back(std::chrono::steady_clock::now());
+
+    // Add rate limit headers
+    response.setHeader("X-RateLimit-Limit", std::to_string(max_requests_));
+    response.setHeader("X-RateLimit-Remaining", std::to_string(max_requests_ - client.requests.size()));
+    response.setHeader("X-RateLimit-Reset", std::to_string(window_seconds_));
+
+    return true;
+}
+
+void RateLimiter::resetLimit(const std::string& ip) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    clients_.erase(ip);
+}
+
+int RateLimiter::getRemainingRequests(const std::string& ip) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto it = clients_.find(ip);
+    if (it == clients_.end()) {
+        return max_requests_;
+    }
+
+    removeOldRequests(it->second);
+    return max_requests_ - static_cast<int>(it->second.requests.size());
+}
+
+void RateLimiter::cleanup() {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto now = std::chrono::steady_clock::now();
+
+    for (auto it = clients_.begin(); it != clients_.end();) {
+        removeOldRequests(it->second);
+
+        // Remove clients with no recent requests
+        if (it->second.requests.empty()) {
+            auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+                now - it->second.last_cleanup
+            ).count();
+
+            if (duration > window_seconds_ * 2) {
+                it = clients_.erase(it);
+                continue;
+            }
+        }
+
+        ++it;
+    }
+}
+
+std::string RateLimiter::extractClientIp(const http::Request& request) {
+    // Try to get IP from X-Forwarded-For header
+    std::string forwarded = request.getHeader("X-Forwarded-For");
+    if (!forwarded.empty()) {
+        size_t comma = forwarded.find(',');
+        return (comma != std::string::npos) ? forwarded.substr(0, comma) : forwarded;
+    }
+
+    // Try X-Real-IP header
+    std::string real_ip = request.getHeader("X-Real-IP");
+    if (!real_ip.empty()) {
+        return real_ip;
+    }
+
+    // Fallback to connection IP (would need to be set in Request object)
+    return request.getHeader("Remote-Addr");
+}
+
+void RateLimiter::removeOldRequests(ClientInfo& client) {
+    auto now = std::chrono::steady_clock::now();
+    auto cutoff = now - std::chrono::seconds(window_seconds_);
+
+    while (!client.requests.empty() && client.requests.front() < cutoff) {
+        client.requests.pop_front();
+    }
+
+    client.last_cleanup = now;
+}
+
+} // namespace middleware

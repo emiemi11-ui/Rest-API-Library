@@ -1,0 +1,61 @@
+#include "../../include/middleware/cors.hpp"
+#include "../../include/http/request.hpp"
+#include "../../include/http/response.hpp"
+#include <sstream>
+
+namespace middleware {
+
+CORS::CORS(const std::string& allowed_origins,
+           const std::vector<std::string>& allowed_methods,
+           const std::vector<std::string>& allowed_headers,
+           int max_age)
+    : allowed_origins_(allowed_origins),
+      allowed_methods_(allowed_methods),
+      allowed_headers_(allowed_headers),
+      max_age_(max_age) {}
+
+void CORS::addHeaders(const http::Request& request, http::Response& response) {
+    // Allow origin
+    response.setHeader("Access-Control-Allow-Origin", allowed_origins_);
+
+    // Allow methods
+    response.setHeader("Access-Control-Allow-Methods", joinVector(allowed_methods_, ", "));
+
+    // Allow headers
+    response.setHeader("Access-Control-Allow-Headers", joinVector(allowed_headers_, ", "));
+
+    // Allow credentials
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+
+    // Max age
+    response.setHeader("Access-Control-Max-Age", std::to_string(max_age_));
+
+    // Expose headers
+    response.setHeader("Access-Control-Expose-Headers", "Content-Length, X-RateLimit-Limit, X-RateLimit-Remaining");
+}
+
+bool CORS::handlePreflight(const http::Request& request, http::Response& response) {
+    if (request.getMethod() != "OPTIONS") {
+        return false;
+    }
+
+    // This is a preflight request
+    response.setStatus(204);  // No Content
+    addHeaders(request, response);
+
+    return true;
+}
+
+std::string CORS::joinVector(const std::vector<std::string>& vec, const std::string& delimiter) {
+    if (vec.empty()) return "";
+
+    std::ostringstream ss;
+    for (size_t i = 0; i < vec.size(); ++i) {
+        if (i > 0) ss << delimiter;
+        ss << vec[i];
+    }
+
+    return ss.str();
+}
+
+} // namespace middleware

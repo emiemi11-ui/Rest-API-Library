@@ -1,0 +1,213 @@
+#include "../../include/auth/authcontroller.hpp"
+#include "../../include/auth/jwt.hpp"
+#include "../../include/http/request.hpp"
+#include "../../include/http/response.hpp"
+#include "../../include/services/userservice.hpp"
+#include "../../include/utils/json.hpp"
+#include "../../include/utils/sanitizer.hpp"
+
+namespace auth {
+
+AuthController::AuthController(std::shared_ptr<JWT> jwt, std::shared_ptr<services::UserService> user_service)
+    : jwt_(jwt), user_service_(user_service) {}
+
+void AuthController::login(const http::Request& request, http::Response& response) {
+    std::string email, password;
+
+    if (!validateLoginRequest(request, email, password)) {
+        response.setStatus(400);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(R"({"error":"Bad Request","message":"Email and password are required"})");
+        return;
+    }
+
+    // In a real implementation, you would:
+    // 1. Look up user by email
+    // 2. Verify password hash
+    // For now, we'll create a simple mock authentication
+
+    if (email == "admin@example.com" && password == "admin123") {
+        // Generate JWT token
+        std::string token = jwt_->generateToken(1, "admin", "admin");
+
+        utils::json::JSON json = utils::json::JSON::object();
+        json["success"] = true;
+        json["token"] = token;
+        json["user"] = utils::json::JSON::object();
+        json["user"]["id"] = 1;
+        json["user"]["email"] = email;
+        json["user"]["role"] = "admin";
+
+        response.setStatus(200);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(json.toString());
+    } else {
+        response.setStatus(401);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(R"({"error":"Unauthorized","message":"Invalid email or password"})");
+    }
+}
+
+void AuthController::registerUser(const http::Request& request, http::Response& response) {
+    if (!validateRegisterRequest(request)) {
+        response.setStatus(400);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(R"({"error":"Bad Request","message":"Invalid registration data"})");
+        return;
+    }
+
+    try {
+        utils::json::JSON json = utils::json::JSON::parse(request.getBody());
+
+        std::string name = json["name"].asString();
+        std::string email = json["email"].asString();
+        std::string password = json["password"].asString();
+
+        // Sanitize inputs
+        name = utils::Sanitizer::trim(name);
+        email = utils::Sanitizer::trim(email);
+
+        // Validate email
+        if (!utils::Sanitizer::isValidEmail(email)) {
+            response.setStatus(400);
+            response.setHeader("Content-Type", "application/json");
+            response.setBody(R"({"error":"Bad Request","message":"Invalid email format"})");
+            return;
+        }
+
+        // In a real implementation, you would:
+        // 1. Check if email already exists
+        // 2. Hash the password
+        // 3. Create user in database
+
+        utils::json::JSON result = utils::json::JSON::object();
+        result["success"] = true;
+        result["message"] = "User registered successfully";
+        result["user"] = utils::json::JSON::object();
+        result["user"]["name"] = name;
+        result["user"]["email"] = email;
+
+        response.setStatus(201);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(result.toString());
+    } catch (const std::exception& e) {
+        response.setStatus(500);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(R"({"error":"Internal Server Error","message":"Failed to register user"})");
+    }
+}
+
+void AuthController::logout(const http::Request& request, http::Response& response) {
+    // In a stateless JWT system, logout is typically handled client-side
+    // by removing the token. For server-side logout, you would need to:
+    // 1. Maintain a blacklist of revoked tokens
+    // 2. Add the current token to the blacklist
+
+    utils::json::JSON json = utils::json::JSON::object();
+    json["success"] = true;
+    json["message"] = "Logged out successfully";
+
+    response.setStatus(200);
+    response.setHeader("Content-Type", "application/json");
+    response.setBody(json.toString());
+}
+
+void AuthController::getProfile(const http::Request& request, http::Response& response) {
+    // Extract user info from JWT token
+    std::string auth_header = request.getHeader("Authorization");
+    if (auth_header.empty() || auth_header.substr(0, 7) != "Bearer ") {
+        response.setStatus(401);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(R"({"error":"Unauthorized","message":"No token provided"})");
+        return;
+    }
+
+    std::string token = auth_header.substr(7);
+
+    if (!jwt_->validateToken(token)) {
+        response.setStatus(401);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(R"({"error":"Unauthorized","message":"Invalid token"})");
+        return;
+    }
+
+    utils::json::JSON json = utils::json::JSON::object();
+    json["user_id"] = jwt_->getUserIdFromToken(token);
+    json["username"] = jwt_->getUsernameFromToken(token);
+    json["role"] = jwt_->getRoleFromToken(token);
+
+    response.setStatus(200);
+    response.setHeader("Content-Type", "application/json");
+    response.setBody(json.toString());
+}
+
+void AuthController::refreshToken(const http::Request& request, http::Response& response) {
+    std::string auth_header = request.getHeader("Authorization");
+    if (auth_header.empty() || auth_header.substr(0, 7) != "Bearer ") {
+        response.setStatus(401);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(R"({"error":"Unauthorized","message":"No token provided"})");
+        return;
+    }
+
+    std::string old_token = auth_header.substr(7);
+
+    if (!jwt_->validateToken(old_token)) {
+        response.setStatus(401);
+        response.setHeader("Content-Type", "application/json");
+        response.setBody(R"({"error":"Unauthorized","message":"Invalid token"})");
+        return;
+    }
+
+    // Generate new token with same user info
+    int user_id = jwt_->getUserIdFromToken(old_token);
+    std::string username = jwt_->getUsernameFromToken(old_token);
+    std::string role = jwt_->getRoleFromToken(old_token);
+
+    std::string new_token = jwt_->generateToken(user_id, username, role);
+
+    utils::json::JSON json = utils::json::JSON::object();
+    json["success"] = true;
+    json["token"] = new_token;
+
+    response.setStatus(200);
+    response.setHeader("Content-Type", "application/json");
+    response.setBody(json.toString());
+}
+
+bool AuthController::validateLoginRequest(const http::Request& request, std::string& email, std::string& password) {
+    try {
+        utils::json::JSON json = utils::json::JSON::parse(request.getBody());
+
+        if (!json.has("email") || !json.has("password")) {
+            return false;
+        }
+
+        email = json["email"].asString();
+        password = json["password"].asString();
+
+        return !email.empty() && !password.empty();
+    } catch (...) {
+        return false;
+    }
+}
+
+bool AuthController::validateRegisterRequest(const http::Request& request) {
+    try {
+        utils::json::JSON json = utils::json::JSON::parse(request.getBody());
+
+        if (!json.has("name") || !json.has("email") || !json.has("password")) {
+            return false;
+        }
+
+        std::string name = json["name"].asString();
+        std::string email = json["email"].asString();
+        std::string password = json["password"].asString();
+
+        return !name.empty() && !email.empty() && !password.empty();
+    } catch (...) {
+        return false;
+    }
+}
+
+} // namespace auth
