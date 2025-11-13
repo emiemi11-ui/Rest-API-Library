@@ -30,5 +30,24 @@ else()
     message(FATAL_ERROR "OpenSSL nu a fost găsit! Instalează cu: sudo apt-get install libssl-dev")
 endif()
 
-# Linkare pthread pentru multi-threading
-target_link_libraries(rest_api PRIVATE pthread)
+# Linkare pthread pentru multi-threading și rt pentru POSIX shared memory/semaphores
+target_link_libraries(rest_api PRIVATE pthread rt)
+
+# ===== CLIENT EXECUTABLES =====
+
+# Simple client
+add_executable(simple_client clients/simple_client.cpp)
+target_include_directories(simple_client PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+# Load test client
+add_executable(load_test_client clients/load_test_client.cpp)
+target_include_directories(load_test_client PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+# IPC demo client
+add_executable(ipc_demo_client
+    clients/ipc_demo_client.cpp
+    src/ipc/sharedmemory.cpp
+    src/sync/semaphore.cpp
+)
+target_include_directories(ipc_demo_client PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(ipc_demo_client pthread rt)
