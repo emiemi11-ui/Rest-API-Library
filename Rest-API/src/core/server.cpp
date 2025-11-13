@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
+#include <csignal>
+#include <thread>
 
 Server::Server(int port, int num_workers)
 : port(port), num_workers(num_workers), running(false), server_fd(-1), pool() {}
@@ -51,7 +53,56 @@ void Server::accept_loop(){
             perror("accept");
             continue;
         }
+
+        active_connections_++; // Track active connections
+
         // Pasează router-ul la Worker pentru a procesa cererea
-        pool.enqueue([cfd, this](){ Worker::handle_client(cfd, &router_); });
+        pool.enqueue([cfd, this](){
+            Worker::handle_client(cfd, &router_);
+            active_connections_--; // Decrement after handling
+        });
     }
+}
+
+// Graceful shutdown implementation
+void Server::request_shutdown() {
+    if (shutdown_requested_.exchange(true)) {
+        return; // Already requested
+    }
+
+    std::cout << "\n[Server] Shutdown requested. Finishing active connections...\n";
+    running = false;
+
+    // Close listening socket (stops accepting new connections)
+    if (server_fd >= 0) {
+        ::shutdown(server_fd, SHUT_RDWR);
+        ::close(server_fd);
+        server_fd = -1;
+    }
+
+    // Wait for active connections to finish
+    wait_for_connections_to_close();
+
+    std::cout << "[Server] Graceful shutdown complete.\n";
+}
+
+void Server::wait_for_connections_to_close() {
+    auto start = std::chrono::steady_clock::now();
+
+    while (active_connections_ > 0) {
+        auto elapsed = std::chrono::steady_clock::now() - start;
+        if (elapsed > shutdown_timeout_) {
+            std::cout << "[Server] Shutdown timeout reached. Forcing close of "
+                     << active_connections_.load() << " connections.\n";
+            break;
+        }
+
+        std::cout << "[Server] Waiting for " << active_connections_.load()
+                 << " active connections...\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+}
+
+void Server::set_shutdown_timeout(std::chrono::seconds timeout) {
+    shutdown_timeout_ = timeout;
 }
