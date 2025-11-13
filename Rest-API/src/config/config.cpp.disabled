@@ -1,0 +1,187 @@
+#include "../../include/config/config.hpp"
+#include "../../include/utils/json.hpp"
+#include <fstream>
+#include <sstream>
+#include <cstdlib>
+
+namespace config {
+
+Config& Config::getInstance() {
+    static Config instance;
+    return instance;
+}
+
+Config::Config() {
+    loadDefaults();
+    loadEnvironmentVariables();
+}
+
+void Config::loadDefaults() {
+    // Server defaults
+    config_["server.port"] = "8080";
+    config_["server.workers"] = "4";
+    config_["server.threads_per_worker"] = "8";
+
+    // Database defaults
+    config_["database.path"] = "rest_api.db";
+    config_["database.pool.min"] = "5";
+    config_["database.pool.max"] = "20";
+
+    // JWT defaults
+    config_["jwt.secret"] = "change_this_secret_in_production";
+    config_["jwt.expiration_hours"] = "24";
+
+    // Rate limiting defaults
+    config_["rate_limiting.enabled"] = "true";
+    config_["rate_limiting.max_requests"] = "100";
+    config_["rate_limiting.window_seconds"] = "60";
+
+    // Logging defaults
+    config_["logging.file"] = "rest_api.log";
+    config_["logging.level"] = "INFO";
+    config_["logging.max_size_mb"] = "10";
+    config_["logging.max_files"] = "5";
+
+    // CORS defaults
+    config_["cors.enabled"] = "true";
+    config_["cors.origin"] = "*";
+}
+
+void Config::loadEnvironmentVariables() {
+    // Check for environment variable overrides
+    const char* env_port = std::getenv("REST_API_PORT");
+    if (env_port) config_["server.port"] = env_port;
+
+    const char* env_workers = std::getenv("REST_API_WORKERS");
+    if (env_workers) config_["server.workers"] = env_workers;
+
+    const char* env_db = std::getenv("REST_API_DB_PATH");
+    if (env_db) config_["database.path"] = env_db;
+
+    const char* env_jwt_secret = std::getenv("JWT_SECRET");
+    if (env_jwt_secret) config_["jwt.secret"] = env_jwt_secret;
+
+    const char* env_log_level = std::getenv("LOG_LEVEL");
+    if (env_log_level) config_["logging.level"] = env_log_level;
+}
+
+bool Config::loadFromFile(const std::string& config_file) {
+    try {
+        std::ifstream file(config_file);
+        if (!file.is_open()) {
+            return false;
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string content = buffer.str();
+
+        utils::json::JSON json = utils::json::JSON::parse(content);
+
+        // Parse server settings
+        if (json.has("server")) {
+            auto server = json["server"];
+            if (server.has("port")) config_["server.port"] = std::to_string(server["port"].asInt());
+            if (server.has("workers")) config_["server.workers"] = std::to_string(server["workers"].asInt());
+            if (server.has("threads_per_worker")) config_["server.threads_per_worker"] = std::to_string(server["threads_per_worker"].asInt());
+        }
+
+        // Parse database settings
+        if (json.has("database")) {
+            auto db = json["database"];
+            if (db.has("path")) config_["database.path"] = db["path"].asString();
+            if (db.has("pool")) {
+                auto pool = db["pool"];
+                if (pool.has("min")) config_["database.pool.min"] = std::to_string(pool["min"].asInt());
+                if (pool.has("max")) config_["database.pool.max"] = std::to_string(pool["max"].asInt());
+            }
+        }
+
+        // Parse JWT settings
+        if (json.has("jwt")) {
+            auto jwt = json["jwt"];
+            if (jwt.has("secret")) config_["jwt.secret"] = jwt["secret"].asString();
+            if (jwt.has("expiration_hours")) config_["jwt.expiration_hours"] = std::to_string(jwt["expiration_hours"].asInt());
+        }
+
+        // Parse rate limiting settings
+        if (json.has("rate_limiting")) {
+            auto rl = json["rate_limiting"];
+            if (rl.has("enabled")) config_["rate_limiting.enabled"] = rl["enabled"].asBool() ? "true" : "false";
+            if (rl.has("max_requests")) config_["rate_limiting.max_requests"] = std::to_string(rl["max_requests"].asInt());
+            if (rl.has("window_seconds")) config_["rate_limiting.window_seconds"] = std::to_string(rl["window_seconds"].asInt());
+        }
+
+        // Parse logging settings
+        if (json.has("logging")) {
+            auto log = json["logging"];
+            if (log.has("file")) config_["logging.file"] = log["file"].asString();
+            if (log.has("level")) config_["logging.level"] = log["level"].asString();
+            if (log.has("max_size_mb")) config_["logging.max_size_mb"] = std::to_string(log["max_size_mb"].asInt());
+            if (log.has("max_files")) config_["logging.max_files"] = std::to_string(log["max_files"].asInt());
+        }
+
+        // Parse CORS settings
+        if (json.has("cors")) {
+            auto cors = json["cors"];
+            if (cors.has("enabled")) config_["cors.enabled"] = cors["enabled"].asBool() ? "true" : "false";
+            if (cors.has("origin")) config_["cors.origin"] = cors["origin"].asString();
+        }
+
+        return true;
+    } catch (const std::exception& e) {
+        return false;
+    }
+}
+
+std::string Config::getString(const std::string& key, const std::string& default_value) const {
+    auto it = config_.find(key);
+    return (it != config_.end()) ? it->second : default_value;
+}
+
+int Config::getInt(const std::string& key, int default_value) const {
+    auto it = config_.find(key);
+    if (it == config_.end()) return default_value;
+
+    try {
+        return std::stoi(it->second);
+    } catch (...) {
+        return default_value;
+    }
+}
+
+bool Config::getBool(const std::string& key, bool default_value) const {
+    auto it = config_.find(key);
+    if (it == config_.end()) return default_value;
+
+    std::string value = it->second;
+    return (value == "true" || value == "1" || value == "yes");
+}
+
+double Config::getDouble(const std::string& key, double default_value) const {
+    auto it = config_.find(key);
+    if (it == config_.end()) return default_value;
+
+    try {
+        return std::stod(it->second);
+    } catch (...) {
+        return default_value;
+    }
+}
+
+void Config::set(const std::string& key, const std::string& value) {
+    config_[key] = value;
+}
+
+bool Config::has(const std::string& key) const {
+    return config_.find(key) != config_.end();
+}
+
+std::string Config::trim(const std::string& str) {
+    size_t first = str.find_first_not_of(" \t\n\r");
+    if (first == std::string::npos) return "";
+    size_t last = str.find_last_not_of(" \t\n\r");
+    return str.substr(first, last - first + 1);
+}
+
+} // namespace config

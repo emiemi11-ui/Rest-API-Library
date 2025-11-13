@@ -1,0 +1,172 @@
+#include "../../include/monitoring/metrics.hpp"
+#include "../../include/utils/json.hpp"
+#include <algorithm>
+#include <numeric>
+
+namespace monitoring {
+
+Metrics& Metrics::getInstance() {
+    static Metrics instance;
+    return instance;
+}
+
+Metrics::Metrics() {
+    start_time_ = std::chrono::steady_clock::now();
+}
+
+void Metrics::recordRequest(const std::string& method, const std::string& path,
+                            int status_code, double duration_ms) {
+    total_requests_++;
+    total_response_time_ += duration_ms;
+
+    if (status_code >= 200 && status_code < 400) {
+        successful_requests_++;
+    } else {
+        failed_requests_++;
+    }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    status_code_counts_[status_code]++;
+
+    std::string endpoint = method + " " + path;
+    endpoint_counts_[endpoint]++;
+
+    histograms_["response_time"].add(duration_ms);
+}
+
+void Metrics::incrementCounter(const std::string& name, int value) {
+    counters_[name] += value;
+}
+
+void Metrics::setGauge(const std::string& name, double value) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    gauges_[name] = value;
+}
+
+void Metrics::recordHistogram(const std::string& name, double value) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    histograms_[name].add(value);
+}
+
+std::string Metrics::toJson() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    utils::json::JSON json = utils::json::JSON::object();
+
+    // Basic metrics
+    json["total_requests"] = static_cast<int>(total_requests_.load());
+    json["successful_requests"] = static_cast<int>(successful_requests_.load());
+    json["failed_requests"] = static_cast<int>(failed_requests_.load());
+    json["average_response_time_ms"] = getAverageResponseTime();
+    json["requests_per_second"] = getRequestsPerSecond();
+
+    // Uptime
+    auto now = std::chrono::steady_clock::now();
+    auto uptime = std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
+    json["uptime_seconds"] = static_cast<int>(uptime);
+
+    // Status code distribution
+    utils::json::JSON status_codes = utils::json::JSON::object();
+    for (const auto& pair : status_code_counts_) {
+        status_codes[std::to_string(pair.first)] = static_cast<int>(pair.second);
+    }
+    json["status_codes"] = status_codes;
+
+    // Top endpoints
+    utils::json::JSON endpoints = utils::json::JSON::object();
+    for (const auto& pair : endpoint_counts_) {
+        endpoints[pair.first] = static_cast<int>(pair.second);
+    }
+    json["endpoints"] = endpoints;
+
+    // Custom gauges
+    utils::json::JSON gauges_json = utils::json::JSON::object();
+    for (const auto& pair : gauges_) {
+        gauges_json[pair.first] = pair.second;
+    }
+    json["gauges"] = gauges_json;
+
+    return json.toStringPretty();
+}
+
+std::string Metrics::toPrometheus() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::ostringstream ss;
+
+    // Total requests
+    ss << "# HELP rest_api_requests_total Total number of HTTP requests\n";
+    ss << "# TYPE rest_api_requests_total counter\n";
+    ss << "rest_api_requests_total " << total_requests_.load() << "\n\n";
+
+    // Successful requests
+    ss << "# HELP rest_api_requests_successful_total Total number of successful HTTP requests\n";
+    ss << "# TYPE rest_api_requests_successful_total counter\n";
+    ss << "rest_api_requests_successful_total " << successful_requests_.load() << "\n\n";
+
+    // Failed requests
+    ss << "# HELP rest_api_requests_failed_total Total number of failed HTTP requests\n";
+    ss << "# TYPE rest_api_requests_failed_total counter\n";
+    ss << "rest_api_requests_failed_total " << failed_requests_.load() << "\n\n";
+
+    // Average response time
+    ss << "# HELP rest_api_response_time_ms_average Average response time in milliseconds\n";
+    ss << "# TYPE rest_api_response_time_ms_average gauge\n";
+    ss << "rest_api_response_time_ms_average " << getAverageResponseTime() << "\n\n";
+
+    // Requests per second
+    ss << "# HELP rest_api_requests_per_second Requests per second\n";
+    ss << "# TYPE rest_api_requests_per_second gauge\n";
+    ss << "rest_api_requests_per_second " << getRequestsPerSecond() << "\n\n";
+
+    return ss.str();
+}
+
+void Metrics::reset() {
+    total_requests_ = 0;
+    successful_requests_ = 0;
+    failed_requests_ = 0;
+    total_response_time_ = 0.0;
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    status_code_counts_.clear();
+    endpoint_counts_.clear();
+    counters_.clear();
+    gauges_.clear();
+    histograms_.clear();
+
+    start_time_ = std::chrono::steady_clock::now();
+}
+
+double Metrics::getAverageResponseTime() const {
+    uint64_t requests = total_requests_.load();
+    if (requests == 0) return 0.0;
+    return total_response_time_.load() / requests;
+}
+
+double Metrics::getRequestsPerSecond() const {
+    auto now = std::chrono::steady_clock::now();
+    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now - start_time_).count();
+
+    if (seconds == 0) return 0.0;
+    return static_cast<double>(total_requests_.load()) / seconds;
+}
+
+// Histogram methods
+double Metrics::Histogram::getPercentile(double percentile) const {
+    if (values.empty()) return 0.0;
+
+    std::vector<double> sorted = values;
+    std::sort(sorted.begin(), sorted.end());
+
+    size_t index = static_cast<size_t>(sorted.size() * percentile / 100.0);
+    if (index >= sorted.size()) index = sorted.size() - 1;
+
+    return sorted[index];
+}
+
+double Metrics::Histogram::getAverage() const {
+    if (values.empty()) return 0.0;
+    return std::accumulate(values.begin(), values.end(), 0.0) / values.size();
+}
+
+} // namespace monitoring
