@@ -173,19 +173,19 @@ int main(int argc, char** argv) {
     });
     std::cout << "  ✓ GET  /api/products\n";
 
+    // GET /api/products/search - Căutare produse (TREBUIE ÎNAINTE DE :id)
+    router.get("/api/products/search", [&productController](const HttpRequest& req,
+                                                             const std::map<std::string,std::string>& params) {
+        return productController.search(req, params);
+    });
+    std::cout << "  ✓ GET  /api/products/search\n";
+
     // GET /api/products/:id - Produs specific
     router.get("/api/products/:id", [&productController](const HttpRequest& req,
                                                           const std::map<std::string,std::string>& params) {
         return productController.getById(req, params);
     });
     std::cout << "  ✓ GET  /api/products/:id\n";
-
-    // GET /api/products/search - Căutare produse
-    router.get("/api/products/search", [&productController](const HttpRequest& req,
-                                                             const std::map<std::string,std::string>& params) {
-        return productController.search(req, params);
-    });
-    std::cout << "  ✓ GET  /api/products/search\n";
 
     // GET /api/products/category/:category - Filtrare după categorie
     router.get("/api/products/category/:category", [&productController](const HttpRequest& req,

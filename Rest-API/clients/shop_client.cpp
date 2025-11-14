@@ -341,7 +341,7 @@ public:
             std::string name = extract_json_value(product, "name");
             std::string category = extract_json_value(product, "category");
             std::string price = extract_json_value(product, "price");
-            std::string stock = extract_json_value(product, "stock");
+            std::string stock = extract_json_value(product, "stock_quantity");
 
             if (name.length() > 26) name = name.substr(0, 23) + "...";
             if (category.length() > 12) category = category.substr(0, 9) + "...";
@@ -377,7 +377,7 @@ public:
             std::string name = extract_json_value(body, "name");
             std::string category = extract_json_value(body, "category");
             std::string price = extract_json_value(body, "price");
-            std::string stock = extract_json_value(body, "stock");
+            std::string stock = extract_json_value(body, "stock_quantity");
             std::string description = extract_json_value(body, "description");
 
             std::cout << BOLD << "Name:        " << RESET << name << "\n";
