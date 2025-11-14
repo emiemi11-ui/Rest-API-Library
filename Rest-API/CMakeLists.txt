@@ -39,9 +39,10 @@ target_link_libraries(rest_api PRIVATE pthread rt)
 add_executable(simple_client clients/simple_client.cpp)
 target_include_directories(simple_client PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
-# Load test client
+# Load test client (Production-Ready with Network Support)
 add_executable(load_test_client clients/load_test_client.cpp)
 target_include_directories(load_test_client PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(load_test_client PRIVATE pthread)
 
 # IPC demo client
 add_executable(ipc_demo_client
@@ -51,3 +52,20 @@ add_executable(ipc_demo_client
 )
 target_include_directories(ipc_demo_client PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(ipc_demo_client pthread rt)
+
+# IPC demo server (creates PriorityQueue in shared memory)
+add_executable(ipc_demo_server
+    servers/ipc_demo_server.cpp
+    src/ipc/sharedmemory.cpp
+    src/sync/semaphore.cpp
+)
+target_include_directories(ipc_demo_server PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(ipc_demo_server pthread rt)
+
+# E-commerce Shop Client (Interactive CLI)
+add_executable(shop_client clients/shop_client.cpp)
+target_include_directories(shop_client PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+# Admin Dashboard Client (Network TUI)
+add_executable(admin_client clients/admin_client.cpp)
+target_include_directories(admin_client PRIVATE ${CMAKE_SOURCE_DIR}/include)
