@@ -111,6 +111,11 @@ target_include_directories(example5_medical PRIVATE
     ${CMAKE_SOURCE_DIR}/framework/include
 )
 
+# ===== TESTS =====
+
+# Add tests subdirectory
+add_subdirectory(tests)
+
 message(STATUS "")
 message(STATUS "╔════════════════════════════════════════════════════════════════╗")
 message(STATUS "║  REST API FRAMEWORK - Build Configuration                     ║")
@@ -122,5 +127,9 @@ message(STATUS "║    - example2_ecommerce  (port 8080)                        
 message(STATUS "║    - example3_iot        (port 8082)                           ║")
 message(STATUS "║    - example4_banking    (port 8083)                           ║")
 message(STATUS "║    - example5_medical    (port 8084)                           ║")
+message(STATUS "║  Tests:                                                        ║")
+message(STATUS "║    - test_router         (unit test)                           ║")
+message(STATUS "║    - test_sharedqueue    (unit test)                           ║")
+message(STATUS "║    - benchmark_throughput (performance)                        ║")
 message(STATUS "╚════════════════════════════════════════════════════════════════╝")
 message(STATUS "")
