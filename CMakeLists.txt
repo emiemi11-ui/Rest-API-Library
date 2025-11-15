@@ -69,6 +69,21 @@ target_include_directories(example1_simple PRIVATE
     ${CMAKE_SOURCE_DIR}/framework/include
 )
 
+# Example 2: E-Commerce
+file(GLOB_RECURSE ECOMMERCE_SOURCES
+    examples/example2_ecommerce/src/**/*.cpp
+)
+add_executable(example2_ecommerce
+    examples/example2_ecommerce/main.cpp
+    ${ECOMMERCE_SOURCES}
+)
+target_link_libraries(example2_ecommerce PRIVATE restapi)
+target_include_directories(example2_ecommerce PRIVATE
+    ${CMAKE_SOURCE_DIR}/framework/include
+    ${CMAKE_SOURCE_DIR}/infrastructure/include
+    ${CMAKE_SOURCE_DIR}/examples/example2_ecommerce/include
+)
+
 # Example 3: IoT Sensors
 add_executable(example3_iot
     examples/example3_iot/main.cpp
@@ -96,8 +111,6 @@ target_include_directories(example5_medical PRIVATE
     ${CMAKE_SOURCE_DIR}/framework/include
 )
 
-# Note: Example 2 (E-Commerce) will be added later when we migrate the existing code
-
 message(STATUS "")
 message(STATUS "╔════════════════════════════════════════════════════════════════╗")
 message(STATUS "║  REST API FRAMEWORK - Build Configuration                     ║")
@@ -105,6 +118,7 @@ message(STATUS "╠════════════════════�
 message(STATUS "║  Framework Library:  librestapi.a                              ║")
 message(STATUS "║  Examples:                                                     ║")
 message(STATUS "║    - example1_simple     (port 8080)                           ║")
+message(STATUS "║    - example2_ecommerce  (port 8080)                           ║")
 message(STATUS "║    - example3_iot        (port 8082)                           ║")
 message(STATUS "║    - example4_banking    (port 8083)                           ║")
 message(STATUS "║    - example5_medical    (port 8084)                           ║")
