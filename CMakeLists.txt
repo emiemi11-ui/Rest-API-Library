@@ -6,14 +6,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ===== FRAMEWORK LIBRARY =====
 
-# Collect all source files from Rest-API/src (the existing codebase)
-file(GLOB_RECURSE REST_API_SOURCES
-    Rest-API/src/core/*.cpp
-    Rest-API/src/http/*.cpp
-    Rest-API/src/sync/*.cpp
-    Rest-API/src/ipc/*.cpp
-    Rest-API/src/data/*.cpp
-    Rest-API/src/utils/*.cpp
+# Collect all infrastructure source files
+file(GLOB_RECURSE INFRASTRUCTURE_SOURCES
+    infrastructure/src/core/*.cpp
+    infrastructure/src/http/*.cpp
+    infrastructure/src/sync/*.cpp
+    infrastructure/src/ipc/*.cpp
+    infrastructure/src/data/*.cpp
+    infrastructure/src/utils/*.cpp
 )
 
 # Collect framework wrapper sources
@@ -23,14 +23,14 @@ file(GLOB FRAMEWORK_SOURCES
 
 # Create the framework library
 add_library(restapi STATIC
-    ${REST_API_SOURCES}
+    ${INFRASTRUCTURE_SOURCES}
     ${FRAMEWORK_SOURCES}
 )
 
 # Include directories for the framework
 target_include_directories(restapi PUBLIC
     ${CMAKE_SOURCE_DIR}/framework/include
-    ${CMAKE_SOURCE_DIR}/Rest-API/include
+    ${CMAKE_SOURCE_DIR}/infrastructure/include
 )
 
 # Find and link SQLite3
@@ -98,15 +98,6 @@ target_include_directories(example5_medical PRIVATE
 
 # Note: Example 2 (E-Commerce) will be added later when we migrate the existing code
 
-# ===== LEGACY REST API (optional) =====
-# Keep the original rest_api executable for backward compatibility
-file(GLOB_RECURSE LEGACY_SOURCES
-    Rest-API/src/*.cpp
-)
-add_executable(rest_api ${LEGACY_SOURCES})
-target_include_directories(rest_api PRIVATE Rest-API/include)
-target_link_libraries(rest_api PRIVATE ${SQLite3_LIBRARIES} OpenSSL::Crypto pthread rt)
-
 message(STATUS "")
 message(STATUS "╔════════════════════════════════════════════════════════════════╗")
 message(STATUS "║  REST API FRAMEWORK - Build Configuration                     ║")
@@ -117,7 +108,5 @@ message(STATUS "║    - example1_simple     (port 8080)                        
 message(STATUS "║    - example3_iot        (port 8082)                           ║")
 message(STATUS "║    - example4_banking    (port 8083)                           ║")
 message(STATUS "║    - example5_medical    (port 8084)                           ║")
-message(STATUS "║  Legacy:                                                       ║")
-message(STATUS "║    - rest_api            (original E-Commerce API)             ║")
 message(STATUS "╚════════════════════════════════════════════════════════════════╝")
 message(STATUS "")

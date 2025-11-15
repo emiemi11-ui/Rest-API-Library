@@ -1,0 +1,29 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Executables
+example1_simple
+example3_iot
+example4_banking
+example5_medical
+rest_api
+
+# Database files
+*.db
+*.db-*
+
+# Logs
+*.log

@@ -1,10 +1,10 @@
 #include "restapi.hpp"
 
-// Include existing infrastructure
-#include "../../Rest-API/include/core/server.hpp"
-#include "../../Rest-API/include/http/router.hpp"
-#include "../../Rest-API/include/http/request.hpp"
-#include "../../Rest-API/include/http/response.hpp"
+// Include infrastructure layer
+#include "../../infrastructure/include/core/server.hpp"
+#include "../../infrastructure/include/http/router.hpp"
+#include "../../infrastructure/include/http/request.hpp"
+#include "../../infrastructure/include/http/response.hpp"
 
 #include <iostream>
 #include <sstream>
