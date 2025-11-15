@@ -51,10 +51,12 @@ Traditional approach: Hardcoded, monolithic APIs for specific domains
 
 ### 🏗️ Enterprise Architecture
 
-- **Multi-Processing**: Master/Worker pattern for optimal CPU utilization
-- **Multi-Threading**: Configurable thread pool per worker
-- **IPC Optimization**: Shared memory + semaphores for low-latency communication
-- **Connection Pooling**: Efficient database connection management
+- **Multi-Processing**: Real Master/Worker pattern with `fork()` for true process isolation
+- **IPC (Inter-Process Communication)**: POSIX shared memory (`shm_open`) + semaphores for job distribution
+- **Advanced I/O**: `epoll()` for non-blocking, edge-triggered connection acceptance
+- **Multi-Threading**: Configurable ThreadPool (8 threads) in each worker process
+- **Signal Handling**: Graceful shutdown with `SIGTERM`/`SIGINT` and `waitpid()` cleanup
+- **Fault Tolerance**: Automatic worker restart on crash with health monitoring
 
 ### 📦 Developer Experience
 
@@ -162,11 +164,66 @@ curl http://localhost:8080/
 
 ### Multi-Processing Flow
 
-1. **Master Process** accepts TCP connections
-2. **Load balancer** distributes to worker processes via IPC
-3. **Worker processes** handle requests using thread pools
-4. **Shared memory** enables efficient inter-process communication
-5. **Connection pool** optimizes database access
+1. **Master Process** (PID 1) uses `epoll()` for non-blocking connection acceptance
+2. **Worker Processes** (PID 2-N) created via `fork()` - true process isolation
+3. **SharedQueue** in shared memory (`/dev/shm/rest_api_jobs`) distributes file descriptors
+4. **Semaphores** (`/dev/shm/sem.rest_api_jobs_sem`) ensure thread-safe queue operations
+5. **Worker ThreadPools** (8 threads each) process requests in parallel
+6. **Health Monitoring**: Master uses `waitpid(WNOHANG)` to detect crashes and restart workers
+7. **Graceful Shutdown**: `SIGTERM` → workers finish requests → `waitpid()` cleanup → shared memory cleanup
+
+**Verification:**
+```bash
+# See multiple processes
+ps aux | grep example1_simple
+# PID 1000  Master
+# PID 1001  Worker 0
+# PID 1002  Worker 1
+
+# See shared memory IPC
+ls -la /dev/shm/ | grep rest_api
+# rest_api_jobs      (SharedQueue)
+# rest_api_stats     (Statistics)
+# sem.rest_api_jobs_sem  (Semaphore)
+
+# Test graceful shutdown
+kill -TERM <master_pid>
+# [Master] Graceful shutdown initiated
+# [Master] Sending SIGTERM to workers...
+# [Master] All workers terminated
+```
+
+---
+
+## 🎓 Operating Systems Concepts Demonstrated
+
+This framework demonstrates core OS concepts from **PSO (Proiectarea Sistemelor de Operare)**:
+
+### L4 - Process Management
+- ✅ `fork()` - Worker process creation (`master.cpp:88`)
+- ✅ `getpid()/getppid()` - Process identification for logging
+- ✅ `waitpid(WNOHANG)` - Non-blocking worker health checks (`master.cpp:296`)
+- ✅ `kill()` - Signal delivery for graceful shutdown (`master.cpp:370`)
+
+### L5 - Inter-Process Communication (IPC)
+- ✅ **Shared Memory**: POSIX `shm_open()` + `mmap()` (`sharedmemory.cpp`)
+- ✅ **Semaphores**: POSIX `sem_open()` for queue synchronization (`semaphore.cpp`)
+- ✅ **SharedQueue**: Producer-Consumer pattern (Master→Workers) (`sharedqueue.hpp`)
+- ✅ **Signals**: `SIGTERM`, `SIGINT` handlers with `sigaction()` (`master.cpp:53`)
+
+### L7 - Thread Management
+- ✅ **pthread**: `pthread_create()` for ThreadPool (`threadpool.cpp`)
+- ✅ **Mutex**: `pthread_mutex_lock/unlock` for queue protection
+- ✅ **Condition Variables**: Thread synchronization in workers
+
+### L8 - Synchronization
+- ✅ **Producer-Consumer**: Master enqueues, Workers dequeue
+- ✅ **Critical Sections**: Semaphore-protected SharedQueue operations
+- ✅ **Deadlock Prevention**: Timeout-based graceful shutdown
+
+### L9 - Advanced I/O
+- ✅ **epoll**: Edge-triggered, non-blocking connection acceptance (`master.cpp:74`)
+- ✅ **Non-blocking I/O**: `fcntl(F_SETFL, O_NONBLOCK)` on server socket
 
 ---
 

@@ -5,8 +5,8 @@
 #include <chrono>
 #include <netinet/in.h>
 
-#include "core/threadpool.hpp"
-#include "http/router.hpp"   // <-- ca să avem Router
+#include "core/master.hpp"    // <-- SCHIMBAT: MasterProcess în loc de ThreadPool
+#include "http/router.hpp"
 
 class Server {
 public:
@@ -17,7 +17,7 @@ public:
     void start();
     void stop();
 
-    // setează rutele (Router) — asta lipsea
+    // setează rutele (Router)
     void setRouter(const Router& r);
 
     // Graceful shutdown support
@@ -27,18 +27,7 @@ public:
 private:
     int port;
     int num_workers;
-    std::atomic<bool> running;
-    int server_fd;
-    sockaddr_in addr{};
-    ThreadPool pool;
+    MasterProcess* master;   // <-- SCHIMBAT: MasterProcess în loc de ThreadPool
 
-    Router router_;          // <-- păstrăm routerul aici
-
-    // Graceful shutdown members
-    std::atomic<bool> shutdown_requested_{false};
-    std::atomic<int> active_connections_{0};
-    std::chrono::seconds shutdown_timeout_{30};
-
-    void accept_loop();
-    void wait_for_connections_to_close();
+    Router router_;
 };
