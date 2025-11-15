@@ -132,7 +132,7 @@ curl http://localhost:8080/
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              Application Layer (Any Domain)             │
+│         Application Layer (Your Business Logic)         │
 │         E-Commerce │ IoT │ Banking │ Medical │ ...      │
 └─────────────────────────────────────────────────────────┘
                          │
@@ -141,11 +141,12 @@ curl http://localhost:8080/
 ┌─────────────────────────────────────────────────────────┐
 │           REST API Framework (Generic)                  │
 │  • Router  • Request/Response  • Middleware             │
+│  • Simple, Express.js-inspired API                      │
 └─────────────────────────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────┐
-│              Infrastructure Layer                       │
+│         Infrastructure Layer (Core Components)          │
 │  ┌──────────────────────────────────────────────┐      │
 │  │ MASTER → Worker1 ┐ Worker2 ┐ Worker3 ┐ ...  │      │
 │  │          ThreadPool ThreadPool ThreadPool     │      │
@@ -402,12 +403,22 @@ ab -n 10000 -c 100 http://localhost:8080/
 
 ```
 Rest-API-Library/
-├── framework/              # Framework code (generic, reusable)
+├── framework/              # Framework API layer (generic, reusable)
 │   ├── include/
 │   │   └── restapi.hpp    # Main framework header (single include)
 │   ├── src/
-│   │   └── restapi.cpp    # Framework implementation
+│   │   └── restapi.cpp    # Framework wrapper implementation
 │   └── README.md          # Framework documentation
+│
+├── infrastructure/         # Core infrastructure (multi-processing, IPC, HTTP)
+│   ├── include/           # Infrastructure headers
+│   │   ├── core/          # Server, Worker, ThreadPool
+│   │   ├── http/          # Router, Request, Response
+│   │   ├── ipc/           # Shared Memory, IPC Queue
+│   │   ├── sync/          # Mutex, Semaphore
+│   │   ├── data/          # Connection Pool, Database
+│   │   └── utils/         # JSON, Logger, Utilities
+│   └── src/               # Infrastructure implementation
 │
 ├── examples/              # Example applications (5 domains)
 │   ├── example1_simple/   # Simple API (port 8080)
@@ -420,10 +431,6 @@ Rest-API-Library/
 │   ├── run_all_servers.sh # Start all 5 servers
 │   ├── client_tester.py   # Automated testing
 │   └── README.md          # Demo guide
-│
-├── Rest-API/              # Infrastructure layer (unchanged)
-│   ├── include/           # Core headers (Server, Router, IPC, etc.)
-│   └── src/               # Core implementation
 │
 ├── CMakeLists.txt         # Root build configuration
 └── README.md              # This file
