@@ -1,6 +1,6 @@
 #pragma once
-#include "include/ipc/sharedmemory.hpp"
-#include "include/sync/semaphore.hpp"
+#include "ipc/sharedmemory.hpp"
+#include "sync/semaphore.hpp"
 #include <cstring>
 #include <stdexcept>
 #include <iostream>
